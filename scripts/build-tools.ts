@@ -9,6 +9,7 @@ export interface BuildTool {
   build: {
     enabled: boolean
     repository: string
+    sourceBranch: string
     sourceTagPrefix: string
     runner: string
     artifacts: { filename: string; platform: string }[]

@@ -15,7 +15,8 @@ test('release requests only accept known tools, version tags and complete immuta
     sha: 'a'.repeat(40),
   })
   expect(request.releaseTag).toBe('g-wolf-toolkit/v1.2.0-rc.10')
-  expect(request.sourceRepository).toBe('Loudomian/g-wolf-toolkit')
+  expect(request.sourceRepository).toBe('whistle003/g-wolf-toolkit')
+  expect(request.sourceBranch).toBe('tomato')
   for (const input of [
     { tool: 'unknown', tag: 'v1.0.0' },
     { tool: 'df-assembly-tool', tag: 'main' },
@@ -93,7 +94,7 @@ test('the resolver CLI writes a complete immutable request and multiline upload 
     await Bun.write(
       event,
       JSON.stringify({
-        client_payload: {
+        inputs: {
           tool: 'df-assembly-tool',
           tag: 'v1.2.0',
           sha: 'a'.repeat(40),
@@ -102,7 +103,7 @@ test('the resolver CLI writes a complete immutable request and multiline upload 
     )
     await Bun.write(
       preload,
-      `globalThis.fetch = async () => Response.json({ object: { type: 'commit', sha: '${'a'.repeat(40)}' } });`,
+      `globalThis.fetch = async (url) => Response.json(String(url).includes('/compare/') ? { status: 'identical' } : { object: { type: 'commit', sha: '${'a'.repeat(40)}' } });`,
     )
     const child = Bun.spawn(
       [process.execPath, '--preload', preload, 'scripts/release-request.ts'],
@@ -157,6 +158,8 @@ test('annotated source tags are resolved to a commit and a mismatched notificati
   const paths: string[] = []
   const fetcher = (async (url: string | URL | Request) => {
     paths.push(String(url))
+    if (String(url).includes('/compare/'))
+      return Response.json({ status: 'ahead' })
     return Response.json({
       object:
         paths.length % 2
@@ -174,6 +177,7 @@ test('annotated source tags are resolved to a commit and a mismatched notificati
   ).toBe('a'.repeat(40))
   expect(paths[0]).toContain('/git/ref/tags/v1.0.0')
   expect(paths[1]).toContain('/git/tags/' + 'b'.repeat(40))
+  expect(paths[2]).toContain('/compare/' + 'a'.repeat(40) + '...tomato')
   await assert.rejects(
     resolveSourceTag(
       { ...request, sourceSha: 'c'.repeat(40) },
@@ -182,6 +186,26 @@ test('annotated source tags are resolved to a commit and a mismatched notificati
     ),
     /不一致/,
   )
+})
+
+test('source tags outside tomato cannot be built even when their SHA matches the notification', async () => {
+  const request = releaseRequest({
+    tool: 'g-wolf-toolkit',
+    tag: 'v1.0.0',
+    sha: 'a'.repeat(40),
+  })
+  for (const status of ['behind', 'diverged', undefined]) {
+    const fetcher = (async (url: string | URL | Request) =>
+      Response.json(
+        String(url).includes('/compare/')
+          ? { status }
+          : { object: { type: 'commit', sha: 'a'.repeat(40) } },
+      )) as typeof fetch
+    await assert.rejects(
+      resolveSourceTag(request, 'test-token', fetcher),
+      /不属于 tomato/,
+    )
+  }
 })
 
 test('multi-platform deliveries validate every registered archive', async () => {

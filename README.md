@@ -2,6 +2,10 @@
 
 A shared build and release hub for LO tools, with an Astro download site powered by GitHub Releases.
 
+## Tomato branch
+
+This branch builds `whistle003/g-wolf-toolkit` and publishes only to `whistle003/lo-tool-release`. Source tags must be reachable from the source `tomato` branch. See [Tomato setup](docs/tomato-release.md) for local commands and first-time GitHub configuration.
+
 ## Development
 
 Requires Bun 1.4+.
@@ -33,10 +37,10 @@ For automated builds, register the source repository, runner, and ZIP filenames 
 
 G-Wolf Toolkit uses `g-wolf-toolkit/v...` tags. The `df-assembly-tool` identifier is retained as a registry alias for historical build requests and catalogue grouping; old releases and links remain valid. Version 0.1.20 also has a one-time `df-assembly-tool/v0.1.20` upgrade entry with the same checked ZIP for clients whose updater only recognises the old prefix. It is not marked latest; future builds publish only the canonical tag. Keep both prefixes grouped on the site and prefer canonical assets for the same version.
 
-Source publish commands push a tag and send `repository_dispatch` (`event_type: release`, payload: `tool`, `tag`, `sha`) using the local GitHub CLI login. The public `Release` workflow reads the pinned source with the `SOURCE_TOKEN` secret, builds, and publishes. It can also be started manually with an existing source tag.
+Source publish commands push a tag and send `workflow_dispatch` to `release.yml` with `ref=tomato` and inputs `tool`, `tag`, `sha`. `Release Tomato` resolves the tag, verifies its immutable SHA and membership in the source `tomato` branch, builds, and publishes. It can also be started manually with the `tomato` ref. Plain source tag pushes do not publish.
 
-The `Site` workflow automatically deploys the download site to GitHub Pages.
+Public source uses the hub's `GITHUB_TOKEN`; private source can supply the optional `SOURCE_TOKEN` secret with Contents read access. Publication is restricted to `whistle003/lo-tool-release` on `tomato` and uses that repository's own `GITHUB_TOKEN`.
 
-The active workflow is `.github/workflows/pages.yml`. It deploys main-branch pushes, manual runs and successful tool builds (`workflow_run`). Failed builds and pull requests do not deploy. The browser reads Releases on page load, so editing or removing a release updates the displayed catalogue without a deployment.
+The `Site Tomato` workflow builds pushes and PRs targeting `tomato`, plus explicit manual dispatches. Only non-PR runs on `tomato` deploy, using the separate `tomato-pages` environment and `https://whistle003.github.io/lo-tool-release/`. After a successful release, the release workflow explicitly dispatches `pages.yml` at `tomato`. There is no `workflow_run` subscription that could load a workflow from the default branch.
 
-The previous `site.yml` workflow is disabled in GitHub Actions: historical release tags still contain its old release trigger, and changing main cannot change those tagged definitions. Keep that old workflow ID disabled; use `Site` / `pages.yml` for manual rebuilds. The `github-pages` environment continues to permit only the `main` branch.
+Both workflow files already exist in the cloned default branch, which is required for manual dispatch registration. Keep the main branches unchanged; the selected ref supplies the tomato workflow contents. The new release workflow name also avoids the old default-branch site's `Release` subscription. Repository Pages must use GitHub Actions, and the `tomato-pages` environment must permit the `tomato` branch before deployment.

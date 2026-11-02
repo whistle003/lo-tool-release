@@ -1,8 +1,6 @@
-name: Release
+name: Release Tomato
 
 on:
-  repository_dispatch:
-    types: [release]
   workflow_dispatch:
     inputs:
       tool:
@@ -21,11 +19,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.event.client_payload.tool || inputs.tool || github.ref_name }}-${{ github.event.client_payload.tag || inputs.tag || github.ref_name }}
+  group: tomato-release-${{ inputs.tool }}-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
   resolve:
+    if: github.repository == 'whistle003/lo-tool-release' && github.ref == 'refs/heads/tomato' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       tool: ${{ steps.source.outputs.tool }}
@@ -47,7 +46,7 @@ jobs:
         id: source
         run: bun scripts/release-request.ts
         env:
-          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+          SOURCE_TOKEN: ${{ secrets.SOURCE_TOKEN || github.token }}
 
   build:
     needs: resolve
@@ -58,7 +57,7 @@ jobs:
         with:
           repository: ${{ needs.resolve.outputs.source_repository }}
           ref: ${{ needs.resolve.outputs.source_sha }}
-          token: ${{ secrets.SOURCE_TOKEN }}
+          token: ${{ secrets.SOURCE_TOKEN || github.token }}
           persist-credentials: false
       - name: Run the build recipe from the pinned source commit
         uses: ./.github/actions/build-release
@@ -82,3 +81,15 @@ jobs:
       source_tag: ${{ needs.resolve.outputs.source_tag }}
       source_sha: ${{ needs.resolve.outputs.source_sha }}
       artifact: tool-release-${{ github.run_id }}-${{ github.run_attempt }}
+
+  refresh-site:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Refresh the download site on tomato
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: gh workflow run pages.yml --repo "$RELEASE_REPOSITORY" --ref tomato

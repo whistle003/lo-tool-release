@@ -1,22 +1,19 @@
-name: Site
-# This file replaces the retired site.yml workflow. Old release tags retain
-# that workflow, whose ID is disabled so they cannot deploy or cancel Pages.
+name: Site Tomato
+# Explicit dispatch keeps release refreshes on tomato instead of the default branch.
 on:
   push:
-    branches: [main]
+    branches: [tomato]
   pull_request:
+    branches: [tomato]
   workflow_dispatch:
-  workflow_run:
-    workflows: ['Release']
-    types: [completed]
 permissions:
   contents: read
 concurrency:
-  group: site-${{ github.event_name == 'pull_request' && github.ref || 'pages' }}
+  group: tomato-site-${{ github.event_name == 'pull_request' && github.ref || 'pages' }}
   cancel-in-progress: true
 jobs:
   build:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: github.repository == 'whistle003/lo-tool-release' && (github.ref == 'refs/heads/tomato' || github.event_name == 'pull_request')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -34,21 +31,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
       - run: bun run verify
         env:
-          SITE_URL: https://loudomian.github.io
+          SITE_URL: https://whistle003.github.io
           BASE_PATH: /lo-tool-release
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         if: github.event_name != 'pull_request'
         with:
           path: dist
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.repository == 'whistle003/lo-tool-release' && github.ref == 'refs/heads/tomato' && github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:
       pages: write
       id-token: write
     environment:
-      name: github-pages
+      name: tomato-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5

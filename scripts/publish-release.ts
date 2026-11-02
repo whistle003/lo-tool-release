@@ -118,7 +118,7 @@ if (import.meta.main) {
       '--notes-file',
       notesPath,
       '--target',
-      process.env.GITHUB_SHA || 'main',
+      process.env.GITHUB_SHA || 'tomato',
     ]
     if (semver.prerelease(request.version)) args.push('--prerelease')
     await gh(args)

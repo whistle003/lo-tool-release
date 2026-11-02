@@ -18,6 +18,7 @@ permissions:
   contents: write
 jobs:
   release:
+    if: github.repository == 'whistle003/lo-tool-release' && github.ref == 'refs/heads/tomato'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

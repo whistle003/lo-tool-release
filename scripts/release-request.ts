@@ -5,6 +5,7 @@ export interface ReleaseRequest {
   tool: string
   version: string
   sourceRepository: string
+  sourceBranch: string
   sourceTag: string
   sourceSha?: string
   releaseTag: string
@@ -24,7 +25,8 @@ export function releaseRequest(
     throw new Error('工具尚未登记可执行的发布工作流')
   if (
     !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tool.id) ||
-    !/^[\w.-]+\/[\w.-]+$/.test(tool.build.repository)
+    !/^[\w.-]+\/[\w.-]+$/.test(tool.build.repository) ||
+    !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(tool.build.sourceBranch)
   )
     throw new Error('工具登记无效')
   const tag = String(input.tag || '')
@@ -60,6 +62,7 @@ export function releaseRequest(
     tool: tool.id,
     version,
     sourceRepository: tool.build.repository,
+    sourceBranch: tool.build.sourceBranch,
     sourceTag: tag,
     sourceSha: sha?.toLowerCase(),
     releaseTag: `${tool.id}/v${version}`,
@@ -99,13 +102,18 @@ export async function resolveSourceTag(
     throw new Error('标签没有指向有效的提交')
   if (request.sourceSha && request.sourceSha !== object.sha)
     throw new Error('通知中的源码提交与标签不一致，停止发布')
+  const comparison = await get(
+    `compare/${object.sha}...${encodeURIComponent(request.sourceBranch)}`,
+  )
+  if (!['ahead', 'identical'].includes(comparison.status))
+    throw new Error(`源码标签不属于 ${request.sourceBranch} 分支，停止发布`)
   return { ...request, sourceSha: object.sha as string }
 }
 if (import.meta.main) {
   const event = process.env.GITHUB_EVENT_PATH
     ? await Bun.file(process.env.GITHUB_EVENT_PATH).json()
     : {}
-  const payload = event.client_payload || event.inputs || {}
+  const payload = event.inputs || {}
   const request = releaseRequest({
     tool: payload.tool,
     tag: payload.tag,
@@ -114,7 +122,7 @@ if (import.meta.main) {
   const token = process.env.SOURCE_TOKEN
   if (!token)
     throw new Error(
-      '请在公共仓库配置 SOURCE_TOKEN：仅需已登记源码仓库的 Contents 读取权限',
+      '缺少源码读取令牌；公开仓库可使用 GITHUB_TOKEN，私有仓库需配置 SOURCE_TOKEN',
     )
   const resolved = await resolveSourceTag(request, token)
   if (!process.env.GITHUB_OUTPUT)

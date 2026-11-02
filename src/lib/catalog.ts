@@ -22,7 +22,7 @@ export interface Snapshot {
   generatedAt: string | null
   tools: Record<string, Release[]>
 }
-export const hubRepository = 'Loudomian/lo-tool-release'
+export const hubRepository = 'whistle003/lo-tool-release'
 export const catalog = snapshot as Snapshot
 
 function canonicalToolId(id: string) {
